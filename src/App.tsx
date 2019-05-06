@@ -1,143 +1,261 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import './App.css';
-import { Domain } from 'domain';
-import { color, ScaleBand } from 'd3';
 
-const BarChart: React.FC = () => {
+type Margin = {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+type StyleInfo = {
+  width: number
+  height: number
+  margin: Margin
+}
+
+type ChartContainerProps = {
+  children: React.ReactNode
+  styleInfo: StyleInfo
+}
+
+const ChartContainer: React.FC<ChartContainerProps> = ({ children, styleInfo }) => {
+  const { width, height, margin } = styleInfo;
+  const title = 'Census Age Group and Population by Sex';
+
+  return (
+    <svg
+      width={width + margin.left + margin.right}
+      height={height + margin.top + margin.bottom}
+    >
+      <rect width='100%' height='100%' fill='none'/>
+      <text 
+      transform={`translate(${(width + margin.left + margin.right)/2}, 20)`}
+      fontWeight={700}
+      >
+        {title}
+      </text>
+      {children}
+    </svg>
+  );
+};
+
+type ChartContentProps = {
+  children: React.ReactNode
+  styleInfo: StyleInfo
+}
+
+const ChartContent: React.FC<ChartContentProps> = ({children, styleInfo}) => {
+  const { width, height, margin } = styleInfo;
+
+  return (
+    <g id='chart' transform={`translate(${margin.left}, ${margin.top})`}>
+      <rect width={width} height={height} fill='none' />
+      {children}
+    </g>
+  );
+};
+
+type XAxisProps = {
+  scaleFunction: any, // TODO: Fix
+  styleInfo: StyleInfo
+}
+
+const XAxis: React.FC<XAxisProps> = ({ scaleFunction, styleInfo }) => {
+  const { width, height, margin } = styleInfo;
+  const title = 'Age Group';
+  const axisEl = useRef(null);
+
   useEffect(() => {
-    drawChart();
-  }, []);
+    d3.select(axisEl.current).call(scaleFunction);
+  }, [scaleFunction]);
 
-  const drawChart = () => {
-    const width = 600;
-    const height = 400;
-    const margin = {
+  return (
+    <>
+      <g
+        className='axis axis-x'
+        transform={`translate(0, ${height})`}
+        ref={axisEl}
+      />
+      <text
+        transform={`translate(${(width/2)}, ${(height + margin.top -10 )})`}
+        style={{'textAnchor': 'middle'}}
+      >
+        {title}
+      </text>
+    </>
+  );
+}
+
+type YAxisProps = {
+  scaleFunction: any, // TODO: Fix
+  styleInfo: StyleInfo
+}
+
+const YAxis: React.FC<YAxisProps> = ({ scaleFunction, styleInfo }) => {
+  const { height, margin } = styleInfo;
+  const title = 'Population';
+  const axisEl = useRef(null);
+
+  useEffect(() => {
+    d3.select(axisEl.current).call(scaleFunction);
+  }, [scaleFunction]);
+
+  return (
+    <>
+      <g
+        className='axis axis-y'
+        ref={axisEl}
+      />
+      <text
+        transform={'rotate(-90)'}
+        y={0 - margin.left}
+        x={0 - (height / 2)}
+        dy={'1em'}
+        style={{'textAnchor': 'middle'}}
+      >
+        {title}
+      </text>
+    </>
+  );
+};
+
+type LegendInfo = {
+  color: string
+  name: string
+  value: number
+}
+
+type LegendProps = {
+  styleInfo: StyleInfo
+  legendInfos: LegendInfo[]
+}
+
+const Legend: React.FC<LegendProps> = ({ legendInfos, styleInfo }) => {
+  const { width, margin } = styleInfo;
+
+  return (
+    <>
+    {
+      legendInfos.map((info, i) => {
+        return (
+          <g
+            className={'legend'}
+            style={{'fontFamily': 'sans-serif'}}
+            transform={`translate(0,  ${i * 20})`}
+            key={i}
+          >
+            <rect
+              className={'legend-rect'}
+              x={width + margin.right - 12}
+              y={65}
+              width={12}
+              height={12}
+              fill={info.color}
+            ></rect>
+            <text
+              className={'legend-text'}
+              x={ width + margin.right - 22}
+              y={70}
+              style={{'fontSize': '12px', 'textAnchor': 'end'}}
+              dy={'.35em'}
+            >
+              {info.name}
+            </text>
+          </g>
+        )
+      } )
+    }
+    </>
+  )
+};
+
+type BarsProps = {
+  data: CensusDatum[]
+  xScale: d3.ScaleBand<string>
+  yScale: d3.ScaleLinear<number, number>
+  styleInfo: StyleInfo
+  legendInfos: LegendInfo[]
+}
+
+const Bars: React.FC<BarsProps> = ({ data, xScale, yScale, styleInfo, legendInfos }) => {
+  const { height } = styleInfo;
+
+  return (
+    <>
+      {
+        data.map((d, i) => {
+          const info = legendInfos.find(info => info.value === d.sex);
+          const fillColor = (info && info.color) || 'black'
+
+          return <rect
+            className="bar"
+            x={xScale(d.age_group.toString()) || 0}
+            y={yScale(d.people)}
+            width={xScale.bandwidth()}
+            height={height - yScale(d.people)}
+            fill={fillColor}
+            key={i}
+          />
+        })
+      }
+    </>
+  );
+};
+
+const App: React.FC = () => {
+  const styleInfo = {
+    width: 600,
+    height: 400,
+    margin: {
       top: 50,
       right: 50,
       bottom: 50,
       left: 100,
-    };
-
-    const ageDomain = [...new Set(census.map((row: CensusDatum) => row.age_group.toString()))];
-    const peopleDomain = [0, d3.max(census, row => row.people) || 0];
-    const sexDomain = ['1', '2'];
-
-    const container = d3.select('#__bar_chart_root').append('svg')
-      .attr('width', width + margin.left + margin.right)
-      .attr('height', height + margin.top + margin.bottom);
-
-    const chart = container.append('g')
-      .attr('id', 'chart')
-      .attr('transform', `translate(${margin.left}, ${margin.top})`);
-
-    container
-      .insert('rect', ':first-child')
-      .attr('width', '100%')
-      .attr('height', '100%')
-      .attr('fill', 'white');
-
-    chart
-      .append('rect')
-      .attr('width', width)
-      .attr('height', height)
-      .attr('fill', 'white');
-
-    const xScale = d3.scaleBand()
-      .rangeRound([0, width])
-      .padding(0.1)
-      .domain(ageDomain);
-
-    const yScale = d3.scaleLinear()
-      .range([height, 0])
-      .domain(peopleDomain);
-
-    const getColor = () => {
-      const maleColor = '#42adf4';
-      const femaleColor = '#ff96ca';
-      return d3.scaleOrdinal<string>().range([maleColor, femaleColor]).domain(sexDomain);
     }
-
-    const xaxis = chart.append('g')
-      .attr('class', 'axis axis-x')
-      .attr('transform', `translate(0, ${height})`)
-      .call(d3.axisBottom(xScale));
-    
-    const yaxis = chart.append('g')
-      .attr('class', 'axis axis-y')
-      .call(d3.axisLeft(yScale));
-    
-    container.selectAll('text').style('font-family', 'sans-serif');
-    container.append('text')
-      .attr('transform', `translate(${(width + margin.left + margin.right)/2}, 20)`)
-      .style('font-weight', 700)
-      .text('Census Age Group and Population by Sex');
-    
-    const ytitle = chart.append('text')
-      .attr('transform', 'rotate(-90)')
-      .attr('y', 0 - margin.left)
-      .attr('x', 0 - (height / 2))
-      .attr('dy', '1em')
-      .style('text-anchor', 'middle')
-      .text('Population');
-    
-    const xtitle = chart.append('text')
-      .attr('transform', `translate(${(width/2)}, ${(height + margin.top -10 )})`)
-      .style('text-anchor', 'middle')
-      .text('Age Group');
-
-
-    const legend = chart
-      .selectAll('.legend')
-      .data(getColor().domain())
-      .enter()
-      .append('g')
-      .attr('class', 'legend')
-      .style('font-family', 'sans-serif')
-      .attr('transform', (d, i) => `translate(0,  ${i * 20})`)
-
-    legend.append('rect')
-      .attr('class', 'legend-rect')
-      .attr('x', width + margin.right - 12)
-      .attr('y', 65)
-      .attr('width', 12)
-      .attr('height', 12)
-      .style('fill', getColor());
-
-    legend.append('text')
-      .attr('class', 'legend-text')
-      .attr('x', width + margin.right - 22)
-      .attr('y', 70)
-      .style('font-size', '12px')
-      .attr('dy', '.35em')
-      .style('text-anchor', 'end')
-      .text(d => d === '1' ? 'Male' : 'Female');
-      
-    const state = {year: 1900, sex: 2 };
-    const isYearAndSex = (row: CensusDatum, year: number, sex: number) => {
-      return row.year === year && row.sex === sex;
-    }
-
-    const filteredData = census.filter(row => isYearAndSex(row, state.year, state.sex));
-
-    const bars = chart.selectAll('.bar').data(filteredData);
-    const enterbars = bars.enter()
-      .append('rect')
-      .attr('class', 'bar')
-      .attr('x', (d: any) => xScale(d.age_group.toString()) || 0)
-      .attr('y', (d: any) => yScale(d.people))
-      .attr('width', xScale.bandwidth())
-      .attr('height', (d: any) => height - yScale(d.people))
-      .attr('fill', (d: any) => getColor()(d.sex));
   };
+  
+  const legendInfos = [
+    {
+      color: '#42adf4',
+      name: 'Male',
+      value: 1,
+    },
+    {
+      color: '#ff96ca',
+      name: 'Female',
+      value: 2,
+    }
+  ];
 
-  return <div id="__bar_chart_root"></div>
-}
+  const ageDomain = [...new Set(census.map((row: CensusDatum) => row.age_group.toString()))];
+  const peopleDomain = [0, d3.max(census, row => row.people) || 0];
 
-const App: React.FC = () => {
+  const xScale = d3.scaleBand()
+    .rangeRound([0, styleInfo.width])
+    .padding(0.1)
+    .domain(ageDomain);
+
+  const yScale = d3.scaleLinear()
+    .range([styleInfo.height, 0])
+    .domain(peopleDomain);
+
+  const isYearAndSex = (row: CensusDatum, year: number, sex: number) => {
+    return row.year === year && row.sex === sex;
+  }
+  const filteredData = census.filter(row => isYearAndSex(row, 1900, 2));
+
   return (
-    <div>
-      <BarChart />
+    <div style={{'textAlign': 'center'}}>
+      <ChartContainer styleInfo={styleInfo}>
+        <ChartContent styleInfo={styleInfo}>
+          <XAxis scaleFunction={d3.axisBottom(xScale)} styleInfo={styleInfo} />
+          <YAxis scaleFunction={d3.axisLeft(yScale)} styleInfo={styleInfo} />
+          <Legend legendInfos={legendInfos} styleInfo={styleInfo} />
+          <Bars data={filteredData} xScale={xScale} yScale={yScale} styleInfo={styleInfo} legendInfos={legendInfos} />
+        </ChartContent>
+      </ChartContainer>
     </div>
   )
 }
