@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import * as d3 from 'd3';
 import './App.css';
 
@@ -229,6 +229,8 @@ const App: React.FC = () => {
     }
   ];
 
+  const [chartFilter, setChartFilter] = useState({year: 1900, sex: 2});
+
   const ageDomain = [...new Set(census.map((row: CensusDatum) => row.age_group.toString()))];
   const peopleDomain = [0, d3.max(census, row => row.people) || 0];
 
@@ -244,7 +246,8 @@ const App: React.FC = () => {
   const isYearAndSex = (row: CensusDatum, year: number, sex: number) => {
     return row.year === year && row.sex === sex;
   }
-  const filteredData = census.filter(row => isYearAndSex(row, 1900, 2));
+  const filteredData = census.filter(row => isYearAndSex(row, chartFilter.year, chartFilter.sex));
+  const switchSex = () => {setChartFilter({ ...chartFilter, sex: chartFilter.sex === 1 ? 2 : 1 })}
 
   return (
     <div style={{'textAlign': 'center'}}>
@@ -256,6 +259,7 @@ const App: React.FC = () => {
           <Bars data={filteredData} xScale={xScale} yScale={yScale} styleInfo={styleInfo} legendInfos={legendInfos} />
         </ChartContent>
       </ChartContainer>
+      <button onClick={switchSex}>switch sex</button>
     </div>
   )
 }
